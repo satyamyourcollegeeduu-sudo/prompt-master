@@ -1,0 +1,6 @@
+{
+  "name": "PROMPT MASTER",
+  "description": "PROMPT MASTER - Build Smarter Prompts for Every AI Model. Transform your ideas into professional, optimized prompts for ChatGPT, Gemini, Claude, Grok, DeepSeek, Midjourney, Flux, Stable Diffusion, and other leading AI models—all from one place.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
