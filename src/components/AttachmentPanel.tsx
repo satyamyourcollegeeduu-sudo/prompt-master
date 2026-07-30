@@ -20,7 +20,7 @@ export interface FileAttachmentItem {
   name: string;
   size: number;
   type: string;
-  category: 'image' | 'video' | 'pdf' | 'other';
+  category: 'image' | 'video' | 'audio' | 'pdf' | 'other';
   previewUrl?: string;
   summary?: string;
 }
@@ -54,9 +54,10 @@ export const AttachmentPanel: React.FC<AttachmentPanelProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const getFileCategory = (type: string, name: string): 'image' | 'video' | 'pdf' | 'other' => {
+  const getFileCategory = (type: string, name: string): 'image' | 'video' | 'audio' | 'pdf' | 'other' => {
     if (type.startsWith('image/')) return 'image';
     if (type.startsWith('video/')) return 'video';
+    if (type.startsWith('audio/')) return 'audio';
     if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) return 'pdf';
     return 'other';
   };

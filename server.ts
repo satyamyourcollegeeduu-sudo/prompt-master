@@ -30,20 +30,23 @@ const getGeminiClient = () => {
 // API Endpoint 1: Generate Optimized Prompt
 app.post('/api/generate-prompt', async (req, res) => {
   try {
-    const { idea, category, targetModel, tone, complexity, customConstraints } = req.body;
+    const { idea, category, targetModel, tone, complexity, customConstraints } = req.body || {};
 
     if (!idea || typeof idea !== 'string' || idea.trim().length === 0) {
-      return res.status(400).json({ error: 'Please provide a valid idea or topic.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to generate prompt. Please try again.',
+      });
     }
 
     const ai = getGeminiClient();
 
     const systemInstruction = `You are PromptForge AI P10 OMEGA ENGINE (Version: P10 Ultimate Edition).
-Developer: SÃTYÃM
+Developer: SĀTYĀM
 Official Instagram: @prince.10x_
 
 YOUR SYSTEM ROLE & MISSION:
-You are PromptForge AI P10 OMEGA ENGINE, created by SÃTYÃM (@prince.10x_). Your mission is to convert every user idea into the highest-quality professional AI prompt possible.
+You are PromptForge AI P10 OMEGA ENGINE, created by SĀTYĀM (@prince.10x_). Your mission is to convert every user idea into the highest-quality professional AI prompt possible.
 Never generate low-quality prompts.
 Never ignore user intent.
 Always optimize for clarity, accuracy, creativity, and usefulness.
@@ -128,7 +131,7 @@ Verify that the prompt is: Clear, Accurate, Complete, Practical, Structured, Pro
 If improvements are possible, refine automatically before presenting the final result.
 
 CREDITS:
-Developer: SÃTYÃM | Instagram: @prince.10x_ | PromptForge AI – P10 OMEGA ENGINE
+Developer: SĀTYĀM | Instagram: @prince.10x_ | PromptForge AI – P10 OMEGA ENGINE
 
 DOMAIN & METADATA CONTEXT:
 - Category: ${category || 'Auto-Detect'}
@@ -152,15 +155,17 @@ Please transform this idea into an optimized professional prompt according to al
 
     const markdownOutput = response.text || '';
 
-    return res.json({
+    return res.status(200).json({
+      success: true,
       markdown: markdownOutput,
       category: category || 'Auto-Detect',
       originalIdea: idea,
     });
   } catch (error: any) {
-    console.error('Error generating prompt:', error);
+    console.error('Detailed server error in /api/generate-prompt:', error);
     return res.status(500).json({
-      error: error.message || 'Failed to generate prompt. Please check your API configuration or try again.',
+      success: false,
+      error: 'Unable to generate prompt. Please try again.',
     });
   }
 });
@@ -168,16 +173,19 @@ Please transform this idea into an optimized professional prompt according to al
 // API Endpoint 2: Refine / Polish Prompt
 app.post('/api/refine-prompt', async (req, res) => {
   try {
-    const { currentPromptMarkdown, refinementInstruction, category } = req.body;
+    const { currentPromptMarkdown, refinementInstruction, category } = req.body || {};
 
     if (!currentPromptMarkdown || !refinementInstruction) {
-      return res.status(400).json({ error: 'Missing current prompt or refinement instruction.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to generate prompt. Please try again.',
+      });
     }
 
     const ai = getGeminiClient();
 
     const systemInstruction = `You are PromptForge AI P10 OMEGA ENGINE (Version: P10 Ultimate Edition).
-Developer: SÃTYÃM | Instagram: @prince.10x_
+Developer: SĀTYĀM | Instagram: @prince.10x_
 
 Your job is to take an existing prompt specification and refine or modify it according to the user's tweak request while maintaining the complete P10 OMEGA ENGINE specification structure.
 
@@ -221,22 +229,29 @@ Generate the updated 18-section Markdown result reflecting this refinement.`;
       },
     });
 
-    return res.json({
+    return res.status(200).json({
+      success: true,
       markdown: response.text || '',
     });
   } catch (error: any) {
-    console.error('Error refining prompt:', error);
-    return res.status(500).json({ error: error.message || 'Failed to refine prompt.' });
+    console.error('Detailed server error in /api/refine-prompt:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Unable to generate prompt. Please try again.',
+    });
   }
 });
 
 // API Endpoint 3: Test Prompt in AI Sandbox
 app.post('/api/test-prompt', async (req, res) => {
   try {
-    const { promptText, variables } = req.body;
+    const { promptText, variables } = req.body || {};
 
     if (!promptText || typeof promptText !== 'string') {
-      return res.status(400).json({ error: 'Please provide prompt text to test.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to generate prompt. Please try again.',
+      });
     }
 
     // Fill variables if provided
@@ -257,13 +272,17 @@ app.post('/api/test-prompt', async (req, res) => {
       contents: finalPrompt,
     });
 
-    return res.json({
+    return res.status(200).json({
+      success: true,
       testResult: response.text || '',
       executedPrompt: finalPrompt,
     });
   } catch (error: any) {
-    console.error('Error testing prompt:', error);
-    return res.status(500).json({ error: error.message || 'Failed to execute test prompt.' });
+    console.error('Detailed server error in /api/test-prompt:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Unable to generate prompt. Please try again.',
+    });
   }
 });
 

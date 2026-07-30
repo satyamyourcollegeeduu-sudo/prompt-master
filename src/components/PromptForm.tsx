@@ -22,6 +22,9 @@ import {
   Film,
   FileText,
   Image as ImageIcon,
+  Music,
+  File as FileIcon,
+  Cloud,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -144,6 +147,10 @@ export const PromptForm: React.FC<PromptFormProps> = ({
 
   // Hidden File Input Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const chipsScrollRef = useRef<HTMLDivElement>(null);
@@ -226,9 +233,10 @@ export const PromptForm: React.FC<PromptFormProps> = ({
   // File Handlers
   const handleAddFiles = (files: File[]) => {
     const newItems: FileAttachmentItem[] = files.map((file) => {
-      let cat: 'image' | 'video' | 'pdf' | 'other' = 'other';
+      let cat: 'image' | 'video' | 'audio' | 'pdf' | 'other' = 'other';
       if (file.type.startsWith('image/')) cat = 'image';
       else if (file.type.startsWith('video/')) cat = 'video';
+      else if (file.type.startsWith('audio/')) cat = 'audio';
       else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) cat = 'pdf';
 
       let previewUrl: string | undefined = undefined;
@@ -344,7 +352,38 @@ export const PromptForm: React.FC<PromptFormProps> = ({
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,video/*,application/pdf,.pdf,text/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+      <input
+        ref={pdfInputRef}
+        type="file"
+        multiple
+        accept="application/pdf,.pdf"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        multiple
+        accept="video/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+      <input
+        ref={audioInputRef}
+        type="file"
+        multiple
+        accept="audio/*"
         onChange={handleFileInputChange}
         className="hidden"
       />
@@ -420,6 +459,8 @@ export const PromptForm: React.FC<PromptFormProps> = ({
                       <img src={item.previewUrl} alt={item.name} className="h-5 w-5 rounded-full object-cover" />
                     ) : item.category === 'video' ? (
                       <Film className="h-3.5 w-3.5 text-pink-400" />
+                    ) : item.category === 'audio' ? (
+                      <Music className="h-3.5 w-3.5 text-purple-400" />
                     ) : item.category === 'pdf' ? (
                       <FileText className="h-3.5 w-3.5 text-emerald-400" />
                     ) : (
@@ -476,35 +517,95 @@ export const PromptForm: React.FC<PromptFormProps> = ({
 
               {/* Plus Popup Menu (Google AI Studio Style) */}
               {plusMenuOpen && (
-                <div className="absolute left-0 bottom-12 z-50 w-52 rounded-[24px] border border-slate-800/90 bg-[#0F1424]/95 backdrop-blur-2xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-150 space-y-1">
-                  {/* Drive */}
+                <div className="absolute left-0 bottom-12 z-50 w-56 rounded-[24px] border border-slate-800/90 bg-[#0F1424]/95 backdrop-blur-2xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-150 space-y-1">
+                  {/* PDF */}
                   <button
                     type="button"
                     onClick={() => {
                       setPlusMenuOpen(false);
-                      fileInputRef.current?.click();
+                      pdfInputRef.current?.click();
                     }}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
-                  >
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                      <Folder className="h-3.5 w-3.5" />
-                    </div>
-                    <span>Drive</span>
-                  </button>
-
-                  {/* Upload Files */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlusMenuOpen(false);
-                      fileInputRef.current?.click();
-                    }}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
                   >
                     <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                      <Upload className="h-3.5 w-3.5" />
+                      <FileText className="h-3.5 w-3.5" />
                     </div>
-                    <span>Upload Files</span>
+                    <span>📄 PDF</span>
+                  </button>
+
+                  {/* Image */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlusMenuOpen(false);
+                      imageInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                      <ImageIcon className="h-3.5 w-3.5" />
+                    </div>
+                    <span>🖼 Image</span>
+                  </button>
+
+                  {/* Video */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlusMenuOpen(false);
+                      videoInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-pink-500/15 text-pink-400 border border-pink-500/30">
+                      <Film className="h-3.5 w-3.5" />
+                    </div>
+                    <span>🎥 Video</span>
+                  </button>
+
+                  {/* Audio */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlusMenuOpen(false);
+                      audioInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                      <Music className="h-3.5 w-3.5" />
+                    </div>
+                    <span>🎵 Audio</span>
+                  </button>
+
+                  {/* File */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlusMenuOpen(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      <FileIcon className="h-3.5 w-3.5" />
+                    </div>
+                    <span>📁 File</span>
+                  </button>
+
+                  {/* Google Drive */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlusMenuOpen(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                      <Cloud className="h-3.5 w-3.5" />
+                    </div>
+                    <span>☁️ Google Drive</span>
                   </button>
 
                   {/* Camera */}
@@ -514,12 +615,12 @@ export const PromptForm: React.FC<PromptFormProps> = ({
                       setPlusMenuOpen(false);
                       cameraInputRef.current?.click();
                     }}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[16px] text-xs font-semibold text-slate-200 hover:bg-slate-800/80 hover:text-amber-300 transition-all text-left"
                   >
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-pink-500/15 text-pink-400 border border-pink-500/30">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
                       <Camera className="h-3.5 w-3.5" />
                     </div>
-                    <span>Camera</span>
+                    <span>📷 Camera</span>
                   </button>
                 </div>
               )}

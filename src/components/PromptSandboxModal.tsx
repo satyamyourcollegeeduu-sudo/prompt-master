@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { X, Play, RefreshCw, Copy, Check, Terminal, Sparkles, AlertCircle } from 'lucide-react';
+import { postApiJson } from '../utils/apiClient';
 
 interface PromptSandboxModalProps {
   isOpen: boolean;
@@ -30,22 +31,16 @@ export const PromptSandboxModal: React.FC<PromptSandboxModalProps> = ({
     setTestResult(null);
 
     try {
-      const response = await fetch('/api/test-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promptText }),
-      });
+      const data = await postApiJson(
+        '/api/test-prompt',
+        { promptText },
+        'Unable to generate prompt. Please try again.'
+      );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to execute prompt in sandbox.');
-      }
-
-      setTestResult(data.testResult);
+      setTestResult(data.testResult || '');
     } catch (err: any) {
-      console.error('Sandbox execution error:', err);
-      setError(err.message || 'Error executing test prompt.');
+      console.error('Sandbox execution error (Detailed):', err);
+      setError(err.message || 'Unable to generate prompt. Please try again.');
     } finally {
       setIsLoading(false);
     }

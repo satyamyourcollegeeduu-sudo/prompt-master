@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { PromptForm } from './components/PromptForm';
@@ -10,14 +11,30 @@ import { PresetLibraryModal } from './components/PresetLibraryModal';
 import { PromptCompareModal } from './components/PromptCompareModal';
 import { GuideModal } from './components/GuideModal';
 import { SavedPromptsModal } from './components/SavedPromptsModal';
+import { BottomNav } from './components/BottomNav';
+import { LoginPage } from './components/LoginPage';
+import { SignUpPage } from './components/SignUpPage';
+import { ForgotPasswordModal } from './components/ForgotPasswordModal';
+import { ProfileView } from './components/ProfileView';
+import { DashboardView } from './components/DashboardView';
+import {
+  syncUserHistoryToFirestore,
+  syncUserFavoritesToFirestore,
+  logUserActivity
+} from './lib/firebase';
 import {
   PromptGenerationRequest,
   GeneratedPromptResult,
   PresetTemplate,
 } from './types';
-import { AlertCircle } from 'lucide-react';
+import { postApiJson } from './utils/apiClient';
+import { AlertCircle, X } from 'lucide-react';
 
-export default function App() {
+function MainAppContent() {
+  const { user } = useAuth();
+  const [currentView, setCurrentView] = useState<'workspace' | 'dashboard' | 'profile'>('workspace');
+  const [authModal, setAuthModal] = useState<'none' | 'login' | 'signup' | 'forgotPassword'>('none');
+
   const [currentResult, setCurrentResult] = useState<GeneratedPromptResult | null>(null);
   const [history, setHistory] = useState<GeneratedPromptResult[]>(() => {
     try {
@@ -64,14 +81,17 @@ export default function App() {
     advancedPrompt: string;
   }>({ isOpen: false, standardPrompt: '', advancedPrompt: '' });
 
-  // Save history & favorites to LocalStorage
+  // Cloud Sync on history / favorites change
   useEffect(() => {
     try {
       localStorage.setItem('promptforge_history', JSON.stringify(history));
     } catch (e) {
       console.error('Failed to save history', e);
     }
-  }, [history]);
+    if (user?.uid) {
+      syncUserHistoryToFirestore(user.uid, history);
+    }
+  }, [history, user?.uid]);
 
   useEffect(() => {
     try {
@@ -79,7 +99,21 @@ export default function App() {
     } catch (e) {
       console.error('Failed to save favorites', e);
     }
-  }, [favorites]);
+    if (user?.uid) {
+      const favResults = history.filter((h) => favorites.includes(h.id));
+      syncUserFavoritesToFirestore(user.uid, favResults);
+    }
+  }, [favorites, history, user?.uid]);
+
+  // Protected View Gate helper
+  const handleProtectedAction = (viewTarget: 'dashboard' | 'profile') => {
+    if (!user) {
+      setAuthModal('login');
+    } else {
+      setCurrentView(viewTarget);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   // Handle Initial Prompt Generation
   const handleGenerate = async (request: PromptGenerationRequest) => {
@@ -87,21 +121,15 @@ export default function App() {
     setError(null);
 
     try {
-      const response = await fetch('/api/generate-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate prompt.');
-      }
+      const data = await postApiJson(
+        '/api/generate-prompt',
+        request,
+        'Unable to generate prompt. Please try again.'
+      );
 
       const newResult: GeneratedPromptResult = {
         id: 'pf_' + Date.now(),
-        rawMarkdown: data.markdown,
+        rawMarkdown: data.markdown || '',
         optimizedPrompt: '',
         suggestedModel: '',
         tips: [],
@@ -113,9 +141,13 @@ export default function App() {
 
       setCurrentResult(newResult);
       setHistory((prev) => [newResult, ...prev.slice(0, 49)]); // Keep last 50
+
+      if (user?.uid) {
+        await logUserActivity(user.uid, `Generated ${data.category || request.category} Prompt`, 'created_prompt');
+      }
     } catch (err: any) {
-      console.error('Generation Error:', err);
-      setError(err.message || 'Something went wrong while forging your prompt.');
+      console.error('Generation Error (Detailed):', err);
+      setError(err.message || 'Unable to generate prompt. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -129,40 +161,39 @@ export default function App() {
     setError(null);
 
     try {
-      const response = await fetch('/api/refine-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const data = await postApiJson(
+        '/api/refine-prompt',
+        {
           currentPromptMarkdown: currentResult.rawMarkdown,
           refinementInstruction: instruction,
           category: currentResult.category,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to refine prompt.');
-      }
+        },
+        'Unable to generate prompt. Please try again.'
+      );
 
       const updatedResult: GeneratedPromptResult = {
         ...currentResult,
         id: 'pf_' + Date.now(),
-        rawMarkdown: data.markdown,
+        rawMarkdown: data.markdown || '',
         createdAt: Date.now(),
       };
 
       setCurrentResult(updatedResult);
       setHistory((prev) => [updatedResult, ...prev]);
+
+      if (user?.uid) {
+        await logUserActivity(user.uid, `Refined Prompt`, 'refined_prompt');
+      }
     } catch (err: any) {
-      console.error('Refine Error:', err);
-      setError(err.message || 'Failed to refine prompt.');
+      console.error('Refine Error (Detailed):', err);
+      setError(err.message || 'Unable to generate prompt. Please try again.');
     } finally {
       setIsRefining(false);
     }
   };
 
   const handleSelectPreset = (preset: PresetTemplate) => {
+    setCurrentView('workspace');
     handleGenerate({
       idea: preset.idea,
       category: preset.category,
@@ -185,10 +216,17 @@ export default function App() {
   };
 
   const handleToggleFavorite = (id: string) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    );
+    setFavorites((prev) => {
+      const isFav = prev.includes(id);
+      const next = isFav ? prev.filter((f) => f !== id) : [...prev, id];
+      if (user?.uid && !isFav) {
+        logUserActivity(user.uid, 'Saved Favorite Prompt', 'saved_favorite');
+      }
+      return next;
+    });
   };
+
+  const favoriteResults = history.filter((item) => favorites.includes(item.id));
 
   return (
     <div className="min-h-screen bg-[#070B16] text-slate-100 flex font-sans selection:bg-amber-500/30">
@@ -210,67 +248,123 @@ export default function App() {
           onOpenHistory={() => setIsHistoryOpen(true)}
           onOpenSaved={() => setIsSavedOpen(true)}
           onOpenGuide={() => setIsGuideOpen(true)}
+          onOpenDashboard={() => handleProtectedAction('dashboard')}
+          onOpenProfile={() => handleProtectedAction('profile')}
+          onOpenLogin={() => setAuthModal('login')}
           historyCount={history.length}
           savedCount={favorites.length}
         />
 
-        {/* Minimal Google AI Studio Homepage Workspace */}
-        <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-12 sm:py-20 flex flex-col justify-center space-y-8">
-          {/* Minimal Clean Google AI Studio Center Hero Header */}
-          <div className="text-center space-y-4 my-4">
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
-              Build Smarter Prompts for Every AI Model
-            </h1>
+        {/* View Switcher Container */}
+        <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 sm:py-12 pb-24 md:pb-20">
+          {currentView === 'dashboard' ? (
+            <DashboardView
+              history={history}
+              favorites={favoriteResults}
+              onOpenWorkspace={() => setCurrentView('workspace')}
+              onOpenHistory={() => setIsHistoryOpen(true)}
+              onOpenSaved={() => setIsSavedOpen(true)}
+            />
+          ) : currentView === 'profile' ? (
+            <ProfileView
+              onClose={() => setCurrentView('workspace')}
+              onNavigateToDashboard={() => setCurrentView('dashboard')}
+            />
+          ) : (
+            /* Workspace View */
+            <div className="space-y-8 max-w-4xl mx-auto flex flex-col justify-center min-h-[70vh]">
+              {/* Minimal Clean Google AI Studio Center Hero Header */}
+              <div className="text-center space-y-4 my-2">
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
+                  Build Smarter Prompts for Every AI Model
+                </h1>
 
-            <p className="text-xs sm:text-sm text-slate-400 font-semibold tracking-wide">
-              PROMPT MASTER • Dev: •{' '}
-              <a
-                href="https://instagram.com/prince.10x_"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-pink-400 hover:underline font-bold"
-              >
-                @prince.10x_
-              </a>
-            </p>
-          </div>
-
-          {/* Single Central Google AI Studio Modern Prompt Box */}
-          <PromptForm
-            onSubmit={handleGenerate}
-            isLoading={isLoading}
-          />
-
-          {/* System Error Notification */}
-          {error && (
-            <div className="rounded-[20px] border border-rose-900/60 bg-rose-950/30 p-4 text-xs text-rose-300 flex items-start gap-3 shadow-lg max-w-3xl mx-auto">
-              <AlertCircle className="h-5 w-5 shrink-0 text-rose-400 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-bold text-rose-200">System Notification</p>
-                <p>{error}</p>
+                <p className="text-xs sm:text-sm text-slate-400 font-semibold tracking-wide">
+                  PROMPT MASTER • Dev: <span className="text-amber-400 font-bold">SĀTYĀM</span> •{' '}
+                  <a
+                    href="https://instagram.com/prince.10x_"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-pink-400 hover:underline font-bold"
+                  >
+                    @prince.10x_
+                  </a>
+                </p>
               </div>
-            </div>
-          )}
 
-          {/* Generated Result Output Display (Appears when generated) */}
-          {currentResult && (
-            <div className="pt-6">
-              <PromptOutputDisplay
-                result={currentResult}
-                onRefinePrompt={handleRefinePrompt}
-                isRefining={isRefining}
-                onOpenVariableFiller={(promptText, variables) =>
-                  setVariableModal({ isOpen: true, promptText, variables })
-                }
-                onOpenSandbox={(promptText) => setSandboxModal({ isOpen: true, promptText })}
-                onOpenCompare={(standardPrompt, advancedPrompt) =>
-                  setCompareModal({ isOpen: true, standardPrompt, advancedPrompt })
-                }
+              {/* Single Central Google AI Studio Modern Prompt Box */}
+              <PromptForm
+                onSubmit={handleGenerate}
+                isLoading={isLoading}
               />
+
+              {/* System Error Notification */}
+              {error && (
+                <div className="rounded-[20px] border border-rose-900/60 bg-rose-950/30 p-4 text-xs text-rose-300 flex items-start gap-3 shadow-lg max-w-3xl mx-auto">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-rose-400 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-rose-200">System Notification</p>
+                    <p>{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Generated Result Output Display (Appears when generated) */}
+              {currentResult && (
+                <div className="pt-6">
+                  <PromptOutputDisplay
+                    result={currentResult}
+                    onRefinePrompt={handleRefinePrompt}
+                    isRefining={isRefining}
+                    onOpenVariableFiller={(promptText, variables) =>
+                      setVariableModal({ isOpen: true, promptText, variables })
+                    }
+                    onOpenSandbox={(promptText) => setSandboxModal({ isOpen: true, promptText })}
+                    onOpenCompare={(standardPrompt, advancedPrompt) =>
+                      setCompareModal({ isOpen: true, standardPrompt, advancedPrompt })
+                    }
+                  />
+                </div>
+              )}
             </div>
           )}
         </main>
       </div>
+
+      {/* Auth Modal Overlays */}
+      {authModal !== 'none' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md">
+            <button
+              onClick={() => setAuthModal('none')}
+              className="absolute -top-10 right-0 p-2 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="h-6 w-6" />
+            </button>
+
+            {authModal === 'login' && (
+              <LoginPage
+                onSwitchToSignUp={() => setAuthModal('signup')}
+                onSwitchToForgotPassword={() => setAuthModal('forgotPassword')}
+                onSuccess={() => setAuthModal('none')}
+              />
+            )}
+
+            {authModal === 'signup' && (
+              <SignUpPage
+                onSwitchToLogin={() => setAuthModal('login')}
+                onSuccess={() => setAuthModal('none')}
+              />
+            )}
+
+            {authModal === 'forgotPassword' && (
+              <ForgotPasswordModal
+                onBackToLogin={() => setAuthModal('login')}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modals & Drawers */}
       <PresetLibraryModal
@@ -283,7 +377,10 @@ export default function App() {
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         history={history}
-        onSelectResult={(res) => setCurrentResult(res)}
+        onSelectResult={(res) => {
+          setCurrentResult(res);
+          setCurrentView('workspace');
+        }}
         onDeleteResult={handleDeleteHistoryItem}
         onClearAll={handleClearAllHistory}
         favorites={favorites}
@@ -295,7 +392,10 @@ export default function App() {
         onClose={() => setIsSavedOpen(false)}
         favorites={favorites}
         history={history}
-        onSelectResult={(res) => setCurrentResult(res)}
+        onSelectResult={(res) => {
+          setCurrentResult(res);
+          setCurrentView('workspace');
+        }}
         onRemoveFavorite={handleToggleFavorite}
       />
 
@@ -323,6 +423,23 @@ export default function App() {
         standardPrompt={compareModal.standardPrompt}
         advancedPrompt={compareModal.advancedPrompt}
       />
+
+      <BottomNav
+        onOpenPresets={() => setIsPresetsOpen(true)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenSaved={() => setIsSavedOpen(true)}
+        onOpenGuide={() => setIsGuideOpen(true)}
+        historyCount={history.length}
+        savedCount={favorites.length}
+      />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainAppContent />
+    </AuthProvider>
   );
 }

@@ -91,3 +91,42 @@ export interface PresetTemplate {
   idea: string;
   iconName: string;
 }
+
+export interface UserProfile {
+  uid: string;
+  fullName: string;
+  username: string;
+  email: string;
+  photoURL?: string;
+  emailVerified: boolean;
+  createdAt: number;
+  lastLoginAt: number;
+  bio?: string;
+  role?: string;
+}
+
+export interface UserSettings {
+  defaultModel: TargetModel;
+  defaultTone: PromptTone;
+  autoSaveHistory: boolean;
+  cloudSyncEnabled: boolean;
+  theme: 'dark' | 'dim' | 'cyber';
+  notificationsEnabled: boolean;
+}
+
+export interface UserActivity {
+  id: string;
+  title: string;
+  action: 'created_prompt' | 'saved_favorite' | 'refined_prompt' | 'tested_sandbox' | 'login' | 'updated_profile';
+  timestamp: number;
+  details?: string;
+}
+
+export interface DashboardStats {
+  totalPrompts: number;
+  favoritePrompts: number;
+  recentActivityCount: number;
+  accountStatus: 'Verified' | 'Pending Verification' | 'Guest';
+  modelsUsedBreakdown: Record<string, number>;
+}
+
